@@ -175,7 +175,7 @@ body,
 /* Touch Controls */
 .touch-controls {
   position: absolute;
-  bottom: max(18px, env(safe-area-inset-bottom));
+  bottom: max(26px, calc(env(safe-area-inset-bottom) + 18px));
   left: max(16px, env(safe-area-inset-left));
   right: max(16px, env(safe-area-inset-right));
   display: flex;
@@ -515,4 +515,33 @@ body,
     min-width: 84px;
     font-size: 13px;
   }
+}
+
+.credit-badge {
+  position: absolute;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 25;
+  pointer-events: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.78);
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+
+.credit-badge--compact {
+  bottom: max(3px, env(safe-area-inset-bottom));
+  font-size: 10px;
+  padding: 2px 8px;
+  opacity: 0.72;
+}
+
+.credit-heart {
+  color: #ef4444;
 }

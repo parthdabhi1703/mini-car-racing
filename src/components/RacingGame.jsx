@@ -1017,6 +1017,14 @@ export default function RacingGame() {
           </div>
         </div>
       )}
+
+      <div
+        className={`credit-badge ${
+          gameState === 'playing' && isTouchDevice ? 'credit-badge--compact' : ''
+        }`}
+      >
+        Made with <span className="credit-heart">❤</span> by Parth Dabhi
+      </div>
     </div>
   );
 }
