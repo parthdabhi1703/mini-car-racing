@@ -36,22 +36,22 @@ export const PLAYER_CARS = [
 export const ENEMY_TYPES = [
   {
     kind: 'sedan',
-    width: 50,
-    height: 90,
+    width: 54,
+    height: 92,
     speedFactor: 0.48,
     colors: ['#64748b', '#94a3b8', '#0ea5e9', '#a855f7', '#eab308'],
   },
   {
     kind: 'sport',
-    width: 50,
-    height: 94,
+    width: 54,
+    height: 96,
     speedFactor: 0.64,
     colors: ['#f97316', '#ec4899', '#14b8a6'],
   },
   {
     kind: 'truck',
-    width: 56,
-    height: 130,
+    width: 60,
+    height: 132,
     speedFactor: 0.36,
     colors: ['#475569', '#334155', '#6b7280'],
   },

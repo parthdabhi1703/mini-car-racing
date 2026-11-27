@@ -170,8 +170,8 @@ export default function RacingGame() {
       x: 240,
       y: LOGICAL_HEIGHT - 130,
       vx: 0,
-      width: 50,
-      height: 92,
+      width: 54,
+      height: 94,
       tilt: 0,
     },
     enemies: [],
@@ -227,19 +227,21 @@ export default function RacingGame() {
     }
   }, [laneCount]);
 
-  // Detect touch device (initial + dynamic on first touch)
+  // Detect touch/mobile primary pointer (avoids treating touchscreen Windows laptops as mobile)
   useEffect(() => {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
-    if (coarse || 'ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    if (coarse) {
       setIsTouchDevice(true);
     }
-    const onTouchPointer = (e) => {
+    const onPointerDown = (e) => {
       if (e.pointerType === 'touch') {
         setIsTouchDevice(true);
+      } else if (e.pointerType === 'mouse' && !coarse) {
+        setIsTouchDevice(false);
       }
     };
-    window.addEventListener('pointerdown', onTouchPointer, { passive: true });
-    return () => window.removeEventListener('pointerdown', onTouchPointer);
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    return () => window.removeEventListener('pointerdown', onPointerDown);
   }, []);
 
   const computeLayout = useCallback((clientW, clientH) => {
@@ -247,7 +249,7 @@ export default function RacingGame() {
     const vHeight = LOGICAL_HEIGHT;
     const vWidth = Math.max(360, Math.round(vHeight * aspect));
     const lanes = activeLaneCountRef.current;
-    const maxRoad = lanes === 8 ? 672 : lanes === 6 ? 516 : 356;
+    const maxRoad = lanes * 80;
     const roadRatio = lanes === 8 ? 0.9 : lanes === 6 ? 0.86 : 0.8;
     const roadWidth = Math.min(maxRoad, Math.max(292, Math.round(vWidth * roadRatio)));
     const roadLeft = Math.round((vWidth - roadWidth) / 2);
@@ -712,8 +714,8 @@ export default function RacingGame() {
 
           const dx = Math.abs(e.x - sim.player.x);
           const dy = Math.abs(e.y - sim.player.y);
-          const hitW = (e.width + sim.player.width) * 0.48;
-          const hitH = (e.height + sim.player.height) * 0.48;
+          const hitW = (e.width + sim.player.width) * 0.49;
+          const hitH = (e.height + sim.player.height) * 0.485;
 
           if (dx < hitW && dy < hitH) {
             crashed = true;
