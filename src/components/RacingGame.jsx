@@ -128,8 +128,8 @@ export default function RacingGame() {
       x: 240,
       y: LOGICAL_HEIGHT - 130,
       vx: 0,
-      width: 46,
-      height: 88,
+      width: 50,
+      height: 92,
       tilt: 0,
     },
     enemies: [],
@@ -195,7 +195,7 @@ export default function RacingGame() {
     const aspect = Math.max(0.42, clientW / Math.max(1, clientH));
     const vHeight = LOGICAL_HEIGHT;
     const vWidth = Math.max(360, Math.round(vHeight * aspect));
-    const roadWidth = Math.min(400, Math.max(296, Math.round(vWidth * 0.82)));
+    const roadWidth = Math.min(356, Math.max(292, Math.round(vWidth * 0.8)));
     const roadLeft = Math.round((vWidth - roadWidth) / 2);
 
     const sim = simRef.current;
@@ -634,8 +634,8 @@ export default function RacingGame() {
 
           const dx = Math.abs(e.x - sim.player.x);
           const dy = Math.abs(e.y - sim.player.y);
-          const hitW = (e.width + sim.player.width) * 0.42;
-          const hitH = (e.height + sim.player.height) * 0.44;
+          const hitW = (e.width + sim.player.width) * 0.48;
+          const hitH = (e.height + sim.player.height) * 0.48;
 
           if (dx < hitW && dy < hitH) {
             crashed = true;
@@ -646,7 +646,7 @@ export default function RacingGame() {
           }
 
           // Near-miss bonus
-          if (!e.nearMissed && e.y > sim.player.y && dx < hitW + 24 && dy < hitH + 18) {
+          if (!e.nearMissed && e.y > sim.player.y && dx < hitW + 22 && dy < hitH + 16) {
             e.nearMissed = true;
             sim.score += 50;
             soundEngine.playNearMiss();
