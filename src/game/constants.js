@@ -57,6 +57,8 @@ export const ENEMY_TYPES = [
   },
 ];
 
+export const LANE_OPTIONS = [4, 6, 8];
+
 export const STORAGE_KEYS = {
   HIGH_SCORE: 'apex_rush_high_score',
   HIGH_SCORE_HARD: 'apex_rush_high_score_hard',
@@ -64,4 +66,11 @@ export const STORAGE_KEYS = {
   MUTED: 'apex_rush_muted',
   GYRO_ENABLED: 'apex_rush_gyro_enabled',
   DIFFICULTY: 'apex_rush_difficulty',
+  LANE_COUNT: 'apex_rush_lane_count',
 };
+
+export function getHighScoreKey(lanes, difficulty) {
+  if (lanes === 4 && difficulty === 'easy') return STORAGE_KEYS.HIGH_SCORE;
+  if (lanes === 4 && difficulty === 'hard') return STORAGE_KEYS.HIGH_SCORE_HARD;
+  return `apex_rush_high_score_${lanes}_${difficulty}`;
+}

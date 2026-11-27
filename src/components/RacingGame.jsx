@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { PLAYER_CARS, ENEMY_TYPES, STORAGE_KEYS } from '../game/constants';
+import {
+  PLAYER_CARS,
+  ENEMY_TYPES,
+  LANE_OPTIONS,
+  STORAGE_KEYS,
+  getHighScoreKey,
+} from '../game/constants';
 import {
   drawEnvironment,
   drawPickup,
@@ -14,7 +20,19 @@ import { usePwaInstall } from '../hooks/usePwaInstall';
 import { useGyroscope } from '../hooks/useGyroscope';
 
 const LOGICAL_HEIGHT = 800;
-const LANE_COUNT = 4;
+
+function readAllHighScores() {
+  const scores = {};
+  for (const lanes of LANE_OPTIONS) {
+    for (const diff of ['easy', 'hard']) {
+      scores[`${lanes}_${diff}`] = readStorageNumber(
+        getHighScoreKey(lanes, diff),
+        0
+      );
+    }
+  }
+  return scores;
+}
 
 function readStorageNumber(key, fallback = 0) {
   try {
@@ -41,14 +59,12 @@ export default function RacingGame() {
   const [difficulty, setDifficulty] = useState(() =>
     readStorageString(STORAGE_KEYS.DIFFICULTY, 'easy') === 'hard' ? 'hard' : 'easy'
   );
+  const [laneCount, setLaneCount] = useState(() => {
+    const saved = readStorageNumber(STORAGE_KEYS.LANE_COUNT, 4);
+    return LANE_OPTIONS.includes(saved) ? saved : 4;
+  });
   const [score, setScore] = useState(0);
-  const [highScoreEasy, setHighScoreEasy] = useState(() =>
-    readStorageNumber(STORAGE_KEYS.HIGH_SCORE, 0)
-  );
-  const [highScoreHard, setHighScoreHard] = useState(() =>
-    readStorageNumber(STORAGE_KEYS.HIGH_SCORE_HARD, 0)
-  );
-  const highScore = difficulty === 'hard' ? highScoreHard : highScoreEasy;
+  const [highScores, setHighScores] = useState(() => readAllHighScores());
   const [speedKmh, setSpeedKmh] = useState(0);
   const [nitro, setNitro] = useState(100);
   const [selectedCarId, setSelectedCarId] = useState(() =>
@@ -58,6 +74,8 @@ export default function RacingGame() {
     readStorageString(STORAGE_KEYS.MUTED, 'false') === 'true'
   );
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const activeLaneCount = isTouchDevice ? 4 : laneCount;
+  const highScore = highScores[`${activeLaneCount}_${difficulty}`] ?? 0;
   const [showIosHelp, setShowIosHelp] = useState(false);
   const [gyroEnabled, setGyroEnabled] = useState(() =>
     readStorageString(STORAGE_KEYS.GYRO_ENABLED, 'false') === 'true'
@@ -93,6 +111,9 @@ export default function RacingGame() {
 
   const difficultyRef = useRef(difficulty);
   difficultyRef.current = difficulty;
+
+  const activeLaneCountRef = useRef(activeLaneCount);
+  activeLaneCountRef.current = activeLaneCount;
 
   // Input flags stored in ref for zero-latency 60fps reading
   const inputRef = useRef({
@@ -197,6 +218,15 @@ export default function RacingGame() {
     }
   }, [difficulty]);
 
+  // Persist PC lane count
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LANE_COUNT, String(laneCount));
+    } catch {
+      // ignore
+    }
+  }, [laneCount]);
+
   // Detect touch device (initial + dynamic on first touch)
   useEffect(() => {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
@@ -216,7 +246,10 @@ export default function RacingGame() {
     const aspect = Math.max(0.42, clientW / Math.max(1, clientH));
     const vHeight = LOGICAL_HEIGHT;
     const vWidth = Math.max(360, Math.round(vHeight * aspect));
-    const roadWidth = Math.min(356, Math.max(292, Math.round(vWidth * 0.8)));
+    const lanes = activeLaneCountRef.current;
+    const maxRoad = lanes === 8 ? 672 : lanes === 6 ? 516 : 356;
+    const roadRatio = lanes === 8 ? 0.9 : lanes === 6 ? 0.86 : 0.8;
+    const roadWidth = Math.min(maxRoad, Math.max(292, Math.round(vWidth * roadRatio)));
     const roadLeft = Math.round((vWidth - roadWidth) / 2);
 
     const sim = simRef.current;
@@ -238,13 +271,13 @@ export default function RacingGame() {
 
     for (const e of sim.enemies) {
       if (e.lane !== undefined) {
-        const laneW = roadWidth / LANE_COUNT;
+        const laneW = roadWidth / lanes;
         e.x = roadLeft + laneW * (e.lane + 0.5);
       }
     }
     for (const p of sim.pickups) {
       if (p.lane !== undefined) {
-        const laneW = roadWidth / LANE_COUNT;
+        const laneW = roadWidth / lanes;
         p.x = roadLeft + laneW * (p.lane + 0.5);
       }
     }
@@ -252,7 +285,9 @@ export default function RacingGame() {
 
   const resetSimulation = useCallback(() => {
     const sim = simRef.current;
-    const laneW = sim.roadWidth / LANE_COUNT;
+    const lanes = activeLaneCountRef.current;
+    const laneW = sim.roadWidth / lanes;
+    const startLane = Math.max(0, Math.floor(lanes / 2) - 1);
     sim.roadOffset = 0;
     sim.baseSpeed = 370;
     sim.speed = 370;
@@ -266,7 +301,7 @@ export default function RacingGame() {
     sim.particles = [];
     sim.texts = [];
     sim.shake = 0;
-    sim.player.x = sim.roadLeft + laneW * 1.5;
+    sim.player.x = sim.roadLeft + laneW * (startLane + 0.5);
     sim.player.y = LOGICAL_HEIGHT - (isTouchRef.current ? 162 : 138);
     sim.player.vx = 0;
     sim.player.tilt = 0;
@@ -440,7 +475,7 @@ export default function RacingGame() {
       ro.disconnect();
       window.removeEventListener('orientationchange', updateSize);
     };
-  }, [computeLayout]);
+  }, [computeLayout, activeLaneCount]);
 
   // Main 60fps simulation & render loop
   useEffect(() => {
@@ -449,7 +484,8 @@ export default function RacingGame() {
     let hudSyncAcc = 0;
 
     const spawnEnemy = (sim) => {
-      const laneW = sim.roadWidth / LANE_COUNT;
+      const lanes = activeLaneCountRef.current;
+      const laneW = sim.roadWidth / lanes;
       const isHard = difficultyRef.current === 'hard';
       const busyBand = isHard ? 220 : 140;
       const topBand = isHard ? 260 : 210;
@@ -459,14 +495,14 @@ export default function RacingGame() {
         sim.enemies.filter((e) => e.y < busyBand).map((e) => e.lane)
       );
       const freeLanes = [];
-      for (let i = 0; i < LANE_COUNT; i++) {
+      for (let i = 0; i < lanes; i++) {
         if (!busyLanes.has(i)) freeLanes.push(i);
       }
       if (freeLanes.length === 0) return;
 
       // Ensure at least one lane remains passable across the top band
       const topOccupied = sim.enemies.filter((e) => e.y < topBand).length;
-      if (topOccupied >= LANE_COUNT - 1) return;
+      if (topOccupied >= lanes - 1) return;
 
       const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
       const type = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
@@ -474,7 +510,7 @@ export default function RacingGame() {
 
       sim.enemies.push({
         lane,
-        oncoming: isHard && lane >= 2,
+        oncoming: isHard && lane >= Math.floor(lanes / 2),
         x: sim.roadLeft + laneW * (lane + 0.5),
         y: -type.height,
         width: type.width,
@@ -487,8 +523,9 @@ export default function RacingGame() {
     };
 
     const spawnPickup = (sim) => {
-      const laneW = sim.roadWidth / LANE_COUNT;
-      const lane = Math.floor(Math.random() * LANE_COUNT);
+      const lanes = activeLaneCountRef.current;
+      const laneW = sim.roadWidth / lanes;
+      const lane = Math.floor(Math.random() * lanes);
       const x = sim.roadLeft + laneW * (lane + 0.5);
       // Avoid spawning inside an enemy car
       const blocked = sim.enemies.some(
@@ -604,19 +641,20 @@ export default function RacingGame() {
           });
         }
 
-        // Spawn enemies
+        // Spawn enemies (scaled for 4 / 6 / 8 lanes)
+        const laneScale = 4 / activeLaneCountRef.current;
         sim.spawnTimer -= dt;
         if (sim.spawnTimer <= 0) {
           spawnEnemy(sim);
           const minInterval = Math.max(0.38, 1.05 - (sim.baseSpeed - 370) / 700);
-          sim.spawnTimer = minInterval + Math.random() * 0.45;
+          sim.spawnTimer = (minInterval + Math.random() * 0.45) * laneScale;
         }
 
         // Spawn pickups
         sim.pickupTimer -= dt;
         if (sim.pickupTimer <= 0) {
           spawnPickup(sim);
-          sim.pickupTimer = 1.6 + Math.random() * 1.8;
+          sim.pickupTimer = (1.6 + Math.random() * 1.8) * Math.max(0.6, laneScale);
         }
 
         // Move & collide pickups
@@ -712,17 +750,15 @@ export default function RacingGame() {
           const finalScore = Math.floor(sim.score);
           setScore(finalScore);
           if (finalScore > highScoreRef.current) {
-            const isHard = difficultyRef.current === 'hard';
-            if (isHard) {
-              setHighScoreHard(finalScore);
-            } else {
-              setHighScoreEasy(finalScore);
-            }
+            const lanes = activeLaneCountRef.current;
+            const diff = difficultyRef.current;
+            const modeKey = `${lanes}_${diff}`;
+            setHighScores((prev) => ({
+              ...prev,
+              [modeKey]: Math.max(prev[modeKey] ?? 0, finalScore),
+            }));
             try {
-              localStorage.setItem(
-                isHard ? STORAGE_KEYS.HIGH_SCORE_HARD : STORAGE_KEYS.HIGH_SCORE,
-                String(finalScore)
-              );
+              localStorage.setItem(getHighScoreKey(lanes, diff), String(finalScore));
             } catch {
               // ignore
             }
@@ -778,7 +814,7 @@ export default function RacingGame() {
           height: sim.height,
           roadLeft: sim.roadLeft,
           roadWidth: sim.roadWidth,
-          laneCount: LANE_COUNT,
+          laneCount: activeLaneCountRef.current,
           roadOffset: sim.roadOffset,
           boosting: sim.boosting && state === 'playing',
           hardMode: difficultyRef.current === 'hard',
@@ -986,7 +1022,7 @@ export default function RacingGame() {
         </div>
       </header>
 
-      {/* Nitro Bar + 2-Way indicator when playing */}
+      {/* Nitro Bar + Mode chips when playing */}
       {(gameState === 'playing' || gameState === 'paused') && (
         <div className="nitro-row">
           <div className="nitro-hud">
@@ -995,6 +1031,9 @@ export default function RacingGame() {
               <div className="nitro-fill" style={{ width: `${nitro}%` }} />
             </div>
           </div>
+          {!isTouchDevice && activeLaneCount > 4 && (
+            <span className="mode-chip-lanes">{activeLaneCount} LANES</span>
+          )}
           {difficulty === 'hard' && (
             <span className="mode-chip-hard">2-WAY</span>
           )}
@@ -1078,24 +1117,42 @@ export default function RacingGame() {
               Dodge highway traffic, weave for near-miss bonuses, and hit Nitro!
             </p>
 
+            {!isTouchDevice && (
+              <div className="difficulty-picker">
+                <div className="picker-label">HIGHWAY LANES (PC)</div>
+                <div className="lane-grid">
+                  {LANE_OPTIONS.map((lanes) => (
+                    <button
+                      key={lanes}
+                      type="button"
+                      className={`lane-option ${laneCount === lanes ? 'active' : ''}`}
+                      onClick={() => setLaneCount(lanes)}
+                    >
+                      <span className="mode-title">{lanes} Lanes</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="difficulty-picker">
-              <div className="picker-label">GAME MODE</div>
+              <div className="picker-label">TRAFFIC DIRECTION</div>
               <div className="steer-mode-grid">
                 <button
                   type="button"
                   className={`mode-option ${difficulty === 'easy' ? 'active-easy' : ''}`}
                   onClick={() => setDifficulty('easy')}
                 >
-                  <span className="mode-title">🟢 Easy</span>
-                  <span className="mode-sub">1-Way Highway</span>
+                  <span className="mode-title">🟢 Easy (1-Way)</span>
+                  <span className="mode-sub">All {activeLaneCount} Lanes Forward</span>
                 </button>
                 <button
                   type="button"
                   className={`mode-option ${difficulty === 'hard' ? 'active-hard' : ''}`}
                   onClick={() => setDifficulty('hard')}
                 >
-                  <span className="mode-title">🔥 Hard</span>
-                  <span className="mode-sub">Right 2 Lanes Oncoming</span>
+                  <span className="mode-title">🔥 Hard (2-Way)</span>
+                  <span className="mode-sub">Right {activeLaneCount / 2} Lanes Oncoming</span>
                 </button>
               </div>
             </div>
