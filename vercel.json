@@ -5,6 +5,18 @@
   "outputDirectory": "dist",
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        {
+          "key": "Permissions-Policy",
+          "value": "accelerometer=(self), gyroscope=(self), magnetometer=(self), fullscreen=(self)"
+        }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
@@ -32,7 +44,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|sw\\.js|workbox-|manifest\\.webmanifest|.*\\..*).*)",
+      "source": "/((?!assets/|sw\\.js|workbox-|manifest\\.webmanifest|robots\\.txt|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]

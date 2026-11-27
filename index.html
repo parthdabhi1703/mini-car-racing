@@ -2,22 +2,82 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#090d16" />
-    <meta name="description" content="Apex Rush — Fast-paced arcade car racing PWA. Play fullscreen or install as an app." />
+    <title>Apex Rush - Car Racing</title>
+    <meta
+      name="description"
+      content="Play Apex Rush - Car Racing free online or install as a full-screen PWA. Choose Easy 1-way or Hard 2-way oncoming highway traffic with touch, keyboard, or gyro tilt controls."
+    />
+    <meta
+      name="keywords"
+      content="Apex Rush - Car Racing, car racing game, HTML5 racing game, arcade car game, mobile racing PWA, gyro racing game, browser car game"
+    />
+    <meta name="author" content="Parth Dabhi" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Apex Rush - Car Racing" />
+    <meta property="og:title" content="Apex Rush - Car Racing" />
+    <meta
+      property="og:description"
+      content="Fast-paced arcade highway racing PWA. Play in full screen or install as an app with Easy & Hard 2-way traffic modes, Nitro boost, and mobile gyro steering."
+    />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:image:alt" content="Apex Rush - Car Racing app icon" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Apex Rush - Car Racing" />
+    <meta
+      name="twitter:description"
+      content="Fast-paced arcade highway racing PWA with Easy & Hard 2-way traffic modes, Nitro boost, and mobile gyro steering."
+    />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+
+    <!-- PWA / Mobile Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Apex Rush" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>Apex Rush - Car Racing</title>
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Apex Rush - Car Racing",
+        "description": "Fast-paced arcade car racing PWA with Easy 1-way and Hard 2-way oncoming highway modes, Nitro boost, and keyboard, touch, or gyro tilt controls.",
+        "genre": ["Racing", "Arcade"],
+        "gamePlatform": ["Web Browser", "Mobile Web", "PWA"],
+        "applicationCategory": "Game",
+        "operatingSystem": "Any",
+        "author": {
+          "@type": "Person",
+          "name": "Parth Dabhi"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main style="padding:24px;font-family:system-ui,sans-serif;color:#f8fafc;background:#090d16">
+        <h1>Apex Rush - Car Racing</h1>
+        <p>
+          Please enable JavaScript to play Apex Rush - Car Racing, a full-screen offline-ready
+          arcade car racing PWA with Easy and Hard 2-way traffic modes.
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

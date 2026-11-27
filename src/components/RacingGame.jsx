@@ -285,7 +285,7 @@ export default function RacingGame() {
       const granted = await requestGyroAccess();
       if (!granted) {
         setGyroEnabled(false);
-        setGyroNotice('Motion sensor permission denied — switched to Touch controls.');
+        setGyroNotice('Motion sensor permission denied - switched to Touch controls.');
       }
     }
     if (gyroEnabledRef.current) {
@@ -831,14 +831,19 @@ export default function RacingGame() {
   };
 
   return (
-    <div
+    <main
       ref={containerRef}
       className="game-shell"
       onContextMenu={(e) => e.preventDefault()}
     >
+      {gameState !== 'menu' && (
+        <h1 className="sr-only">Apex Rush - Car Racing</h1>
+      )}
       <canvas
         ref={canvasRef}
         className="game-canvas"
+        role="img"
+        aria-label="Apex Rush - Car Racing highway gameplay"
         onPointerDown={handleCanvasPointerDown}
         onPointerMove={handleCanvasPointerMove}
         onPointerUp={handleCanvasPointerEnd}
@@ -1239,6 +1244,6 @@ export default function RacingGame() {
       >
         Made with <span className="credit-heart">❤</span> by Parth Dabhi
       </div>
-    </div>
+    </main>
   );
 }

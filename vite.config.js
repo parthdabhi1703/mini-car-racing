@@ -13,11 +13,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'robots.txt'],
       manifest: {
-        name: 'Apex Rush — Car Racing',
+        name: 'Apex Rush - Car Racing',
         short_name: 'Apex Rush',
-        description: 'Fast-paced arcade car racing game built as an installable offline-ready PWA.',
+        description: 'Apex Rush - Car Racing: fast-paced arcade car racing game built as an installable offline-ready PWA.',
         theme_color: '#090d16',
         background_color: '#090d16',
         display: 'standalone',
