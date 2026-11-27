@@ -110,6 +110,27 @@ export default function RacingGame() {
   const isTouchRef = useRef(false);
   isTouchRef.current = isTouchDevice;
 
+  // Maps active touch/pointer IDs to control keys so multi-touch or cancelled touches never stick
+  const activeControlPointersRef = useRef(new Map());
+
+  const syncControlPointers = useCallback(() => {
+    const activeValues = new Set(activeControlPointersRef.current.values());
+    inputRef.current.left = activeValues.has('left');
+    inputRef.current.right = activeValues.has('right');
+    inputRef.current.down = activeValues.has('down');
+    inputRef.current.boost = activeValues.has('boost');
+  }, []);
+
+  const clearTouchControls = useCallback(() => {
+    activeControlPointersRef.current.clear();
+    inputRef.current.left = false;
+    inputRef.current.right = false;
+    inputRef.current.down = false;
+    inputRef.current.boost = false;
+    inputRef.current.dragPointerId = null;
+    inputRef.current.dragTargetX = null;
+  }, []);
+
   // Mutable simulation state inside ref
   const simRef = useRef({
     width: 480,
@@ -347,13 +368,8 @@ export default function RacingGame() {
     };
 
     const pauseOnBackground = () => {
-      inputRef.current.left = false;
-      inputRef.current.right = false;
+      clearTouchControls();
       inputRef.current.up = false;
-      inputRef.current.down = false;
-      inputRef.current.boost = false;
-      inputRef.current.dragPointerId = null;
-      inputRef.current.dragTargetX = null;
       if (gameStateRef.current === 'playing') {
         soundEngine.stopEngine();
         setGameState('paused');
@@ -364,18 +380,42 @@ export default function RacingGame() {
       if (document.hidden) pauseOnBackground();
     };
 
+    const onGlobalPointerRelease = (e) => {
+      if (activeControlPointersRef.current.has(e.pointerId)) {
+        activeControlPointersRef.current.delete(e.pointerId);
+        syncControlPointers();
+      }
+      if (inputRef.current.dragPointerId === e.pointerId) {
+        inputRef.current.dragPointerId = null;
+        inputRef.current.dragTargetX = null;
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', pauseOnBackground);
+    window.addEventListener('pointerup', onGlobalPointerRelease, true);
+    window.addEventListener('pointercancel', onGlobalPointerRelease, true);
+    window.addEventListener('touchcancel', clearTouchControls, true);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', pauseOnBackground);
+      window.removeEventListener('pointerup', onGlobalPointerRelease, true);
+      window.removeEventListener('pointercancel', onGlobalPointerRelease, true);
+      window.removeEventListener('touchcancel', clearTouchControls, true);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       soundEngine.stopEngine();
     };
-  }, [startGame, toggleFullscreen, togglePause]);
+  }, [clearTouchControls, startGame, syncControlPointers, toggleFullscreen, togglePause]);
+
+  // Clear active touch inputs whenever leaving active gameplay
+  useEffect(() => {
+    if (gameState !== 'playing') {
+      clearTouchControls();
+    }
+  }, [clearTouchControls, gameState]);
 
   // Resize observer to keep canvas sharp at native DPR
   useEffect(() => {
@@ -778,17 +818,32 @@ export default function RacingGame() {
     }
   };
 
-  const setControl = (key, active) => (e) => {
+  const handleControlDown = (key) => (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (active && e.currentTarget?.setPointerCapture) {
+    activeControlPointersRef.current.set(e.pointerId, key);
+    syncControlPointers();
+    if (e.currentTarget?.setPointerCapture) {
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
         // ignore unsupported pointer capture
       }
     }
-    inputRef.current[key] = active;
+  };
+
+  const handleControlEnd = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    activeControlPointersRef.current.delete(e.pointerId);
+    syncControlPointers();
+    if (e.currentTarget?.hasPointerCapture?.(e.pointerId)) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const clientToLogicalX = (clientX) => {
@@ -858,17 +913,9 @@ export default function RacingGame() {
             <span className="stat-value">{score.toLocaleString()}</span>
           </div>
           <div className="stat-pill">
-            <span className="stat-label">
-              {difficulty === 'hard' ? 'BEST (HARD)' : 'BEST'}
-            </span>
+            <span className="stat-label">BEST</span>
             <span className="stat-value accent-gold">{highScore.toLocaleString()}</span>
           </div>
-          {gameState === 'playing' && difficulty === 'hard' && (
-            <div className="stat-pill mode-pill-hard">
-              <span className="stat-label">MODE</span>
-              <span className="stat-value">2-WAY</span>
-            </div>
-          )}
           {gameState === 'playing' && (
             <div className="stat-pill hide-xs">
               <span className="stat-label">SPEED</span>
@@ -900,18 +947,6 @@ export default function RacingGame() {
             >
               <span>📱</span>
               <span className="btn-text">{gyroEnabled ? 'Gyro' : 'Touch'}</span>
-            </button>
-          )}
-
-          {isTouchDevice && gyroEnabled && gameState === 'playing' && (
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={recalibrateGyro}
-              title="Center / Zero Gyro Tilt"
-              aria-label="Center Gyro Tilt"
-            >
-              🎯
             </button>
           )}
 
@@ -951,13 +986,18 @@ export default function RacingGame() {
         </div>
       </header>
 
-      {/* Nitro Bar when playing */}
+      {/* Nitro Bar + 2-Way indicator when playing */}
       {(gameState === 'playing' || gameState === 'paused') && (
-        <div className="nitro-hud">
-          <span className="nitro-label">NITRO</span>
-          <div className="nitro-track">
-            <div className="nitro-fill" style={{ width: `${nitro}%` }} />
+        <div className="nitro-row">
+          <div className="nitro-hud">
+            <span className="nitro-label">NITRO</span>
+            <div className="nitro-track">
+              <div className="nitro-fill" style={{ width: `${nitro}%` }} />
+            </div>
           </div>
+          {difficulty === 'hard' && (
+            <span className="mode-chip-hard">2-WAY</span>
+          )}
         </div>
       )}
 
@@ -969,10 +1009,10 @@ export default function RacingGame() {
               <button
                 type="button"
                 className="touch-btn"
-                onPointerDown={setControl('left', true)}
-                onPointerUp={setControl('left', false)}
-                onPointerLeave={setControl('left', false)}
-                onPointerCancel={setControl('left', false)}
+                onPointerDown={handleControlDown('left')}
+                onPointerUp={handleControlEnd}
+                onPointerCancel={handleControlEnd}
+                onLostPointerCapture={handleControlEnd}
                 aria-label="Steer Left"
               >
                 ◀
@@ -980,10 +1020,10 @@ export default function RacingGame() {
               <button
                 type="button"
                 className="touch-btn"
-                onPointerDown={setControl('right', true)}
-                onPointerUp={setControl('right', false)}
-                onPointerLeave={setControl('right', false)}
-                onPointerCancel={setControl('right', false)}
+                onPointerDown={handleControlDown('right')}
+                onPointerUp={handleControlEnd}
+                onPointerCancel={handleControlEnd}
+                onLostPointerCapture={handleControlEnd}
                 aria-label="Steer Right"
               >
                 ▶
@@ -1003,10 +1043,10 @@ export default function RacingGame() {
           <button
             type="button"
             className="touch-btn slow-touch-btn"
-            onPointerDown={setControl('down', true)}
-            onPointerUp={setControl('down', false)}
-            onPointerLeave={setControl('down', false)}
-            onPointerCancel={setControl('down', false)}
+            onPointerDown={handleControlDown('down')}
+            onPointerUp={handleControlEnd}
+            onPointerCancel={handleControlEnd}
+            onLostPointerCapture={handleControlEnd}
             aria-label="Slow Down"
           >
             ▼
@@ -1014,10 +1054,10 @@ export default function RacingGame() {
           <button
             type="button"
             className="touch-btn nitro-touch-btn"
-            onPointerDown={setControl('boost', true)}
-            onPointerUp={setControl('boost', false)}
-            onPointerLeave={setControl('boost', false)}
-            onPointerCancel={setControl('boost', false)}
+            onPointerDown={handleControlDown('boost')}
+            onPointerUp={handleControlEnd}
+            onPointerCancel={handleControlEnd}
+            onLostPointerCapture={handleControlEnd}
             aria-label="Nitro Boost"
           >
             ⚡ NITRO

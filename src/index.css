@@ -240,13 +240,21 @@ button:focus-visible {
   font-size: 13px;
 }
 
-/* Nitro Bar */
-.nitro-hud {
+/* Nitro Bar & 2-Way chip */
+.nitro-row {
   position: absolute;
-  top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+  top: calc(max(12px, env(safe-area-inset-top)) + 54px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(220px, 52vw);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 9;
+}
+
+.nitro-hud {
+  width: min(210px, 48vw);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -255,8 +263,18 @@ button:focus-visible {
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 999px;
   padding: 4px 10px;
-  pointer-events: none;
-  z-index: 9;
+}
+
+.mode-chip-hard {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fecaca;
+  background: rgba(153, 27, 27, 0.72);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 999px;
+  padding: 4px 9px;
+  backdrop-filter: blur(8px);
 }
 
 .nitro-label {
@@ -284,9 +302,9 @@ button:focus-visible {
 /* Touch Controls */
 .touch-controls {
   position: absolute;
-  bottom: max(26px, calc(env(safe-area-inset-bottom) + 18px));
-  left: max(16px, env(safe-area-inset-left));
-  right: max(16px, env(safe-area-inset-right));
+  bottom: max(38px, calc(env(safe-area-inset-bottom) + 28px));
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -605,11 +623,38 @@ button:focus-visible {
   .btn-text {
     display: none;
   }
+  .hud-top {
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 6px
+      max(10px, env(safe-area-inset-left));
+    gap: 6px;
+  }
+  .hud-stats,
+  .hud-actions {
+    gap: 6px;
+  }
+  .icon-btn {
+    height: 40px;
+    min-width: 40px;
+    padding: 0 9px;
+  }
   .stat-pill {
     padding: 5px 9px;
   }
   .stat-value {
     font-size: 14px;
+  }
+  .modal-card {
+    padding: 18px 16px;
+    max-height: calc(100dvh - 36px);
+  }
+  .game-subtitle {
+    margin: 6px 0 12px;
+    font-size: 13px;
+  }
+  .difficulty-picker,
+  .steer-mode-picker,
+  .car-picker {
+    margin-bottom: 12px;
   }
   .touch-steer-group {
     gap: 8px;
