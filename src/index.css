@@ -283,6 +283,8 @@ button:focus-visible {
   border: 1px solid rgba(56, 189, 248, 0.5);
   border-radius: 999px;
   padding: 4px 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gyro-notice {
@@ -301,15 +303,19 @@ button:focus-visible {
   top: calc(max(12px, env(safe-area-inset-top)) + 54px);
   left: 50%;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
+  white-space: nowrap;
   pointer-events: none;
   z-index: 9;
 }
 
 .nitro-hud {
-  width: min(210px, 48vw);
+  width: clamp(140px, 44vw, 210px);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -317,6 +323,7 @@ button:focus-visible {
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 999px;
   padding: 4px 10px;
+  flex-shrink: 1;
 }
 
 .mode-chip-hard {
@@ -328,6 +335,8 @@ button:focus-visible {
   border: 1px solid rgba(239, 68, 68, 0.5);
   border-radius: 999px;
   padding: 4px 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nitro-label {
