@@ -181,6 +181,7 @@ body,
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  gap: 10px;
   pointer-events: none;
   z-index: 12;
 }
@@ -213,6 +214,16 @@ body,
 .touch-btn:active {
   background: rgba(56, 189, 248, 0.35);
   transform: scale(0.94);
+}
+
+.slow-touch-btn {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(180, 83, 9, 0.34);
+  color: #fef3c7;
+}
+
+.slow-touch-btn:active {
+  background: rgba(245, 158, 11, 0.48);
 }
 
 .nitro-touch-btn {
@@ -490,13 +501,19 @@ body,
   .stat-value {
     font-size: 14px;
   }
+  .touch-steer-group {
+    gap: 8px;
+  }
   .touch-btn {
-    width: 64px;
-    height: 64px;
+    width: clamp(54px, 15vw, 64px);
+    height: clamp(54px, 15vw, 64px);
+    font-size: 20px;
   }
   .nitro-touch-btn {
     width: auto;
-    min-width: 90px;
+    min-width: 84px;
+    padding: 0 14px;
+    font-size: 13px;
   }
 }
 

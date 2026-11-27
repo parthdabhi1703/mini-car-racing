@@ -850,6 +850,17 @@ export default function RacingGame() {
           </div>
           <button
             type="button"
+            className="touch-btn slow-touch-btn"
+            onPointerDown={setControl('down', true)}
+            onPointerUp={setControl('down', false)}
+            onPointerLeave={setControl('down', false)}
+            onPointerCancel={setControl('down', false)}
+            aria-label="Slow Down"
+          >
+            ▼
+          </button>
+          <button
+            type="button"
             className="touch-btn nitro-touch-btn"
             onPointerDown={setControl('boost', true)}
             onPointerUp={setControl('boost', false)}
@@ -925,6 +936,7 @@ export default function RacingGame() {
               {isTouchDevice ? (
                 <>
                   <span><strong>Steer:</strong> Drag road or tap ◀ ▶</span>
+                  <span><strong>Slow:</strong> Hold ▼</span>
                   <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
                 </>
               ) : (
