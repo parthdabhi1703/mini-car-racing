@@ -151,8 +151,60 @@ body,
   touch-action: manipulation;
 }
 
-.steer-mode-picker {
-  margin-bottom: 16px;
+.steer-mode-picker,
+.difficulty-picker {
+  margin-bottom: 14px;
+}
+
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(30, 41, 59, 0.55);
+  color: #e2e8f0;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.mode-option:active {
+  transform: scale(0.97);
+}
+
+.mode-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mode-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.mode-option.active-easy {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.16);
+  color: #ffffff;
+}
+
+.mode-option.active-hard {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ffffff;
+}
+
+.mode-pill-hard {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(127, 29, 29, 0.55);
+}
+
+.mode-pill-hard .stat-label {
+  color: #fca5a5;
 }
 
 .steer-mode-grid {

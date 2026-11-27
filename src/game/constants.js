@@ -59,7 +59,9 @@ export const ENEMY_TYPES = [
 
 export const STORAGE_KEYS = {
   HIGH_SCORE: 'apex_rush_high_score',
+  HIGH_SCORE_HARD: 'apex_rush_high_score_hard',
   CAR_ID: 'apex_rush_car_id',
   MUTED: 'apex_rush_muted',
   GYRO_ENABLED: 'apex_rush_gyro_enabled',
+  DIFFICULTY: 'apex_rush_difficulty',
 };

@@ -4,7 +4,16 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 export function drawEnvironment(ctx, state) {
-  const { width, height, roadLeft, roadWidth, laneCount, roadOffset, boosting } = state;
+  const {
+    width,
+    height,
+    roadLeft,
+    roadWidth,
+    laneCount,
+    roadOffset,
+    boosting,
+    hardMode,
+  } = state;
   const roadRight = roadLeft + roadWidth;
 
   // Shoulder / night terrain
@@ -54,11 +63,19 @@ export function drawEnvironment(ctx, state) {
   const cycle = dashLen + gapLen;
   const dashOffset = roadOffset % cycle;
 
-  ctx.fillStyle = 'rgba(226, 232, 240, 0.42)';
   for (let lane = 1; lane < laneCount; lane++) {
-    const lx = roadLeft + lane * laneW - 2;
-    for (let y = -cycle + dashOffset; y < height + cycle; y += cycle) {
-      ctx.fillRect(lx, y, 4, dashLen);
+    const centerLineX = roadLeft + lane * laneW;
+    if (hardMode && lane === Math.floor(laneCount / 2)) {
+      // Double solid yellow divider separating oncoming right lanes
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.85)';
+      ctx.fillRect(centerLineX - 4, 0, 2.5, height);
+      ctx.fillRect(centerLineX + 1.5, 0, 2.5, height);
+    } else {
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.42)';
+      const lx = centerLineX - 2;
+      for (let y = -cycle + dashOffset; y < height + cycle; y += cycle) {
+        ctx.fillRect(lx, y, 4, dashLen);
+      }
     }
   }
 
@@ -291,9 +308,27 @@ export function drawPlayerCar(ctx, player, carStyle, boosting, time) {
 }
 
 export function drawEnemyCar(ctx, enemy) {
-  const { x, y, width: w, height: h, color, kind } = enemy;
+  const { x, y, width: w, height: h, color, kind, oncoming } = enemy;
   ctx.save();
   ctx.translate(x, y);
+  if (oncoming) {
+    ctx.rotate(Math.PI);
+  }
+
+  // Oncoming vehicle headlight beams (shining downward toward player after rotation)
+  if (oncoming) {
+    const beamGrad = ctx.createLinearGradient(0, -h / 2, 0, -h / 2 - 115);
+    beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.32)');
+    beamGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.34, -h * 0.48);
+    ctx.lineTo(-w * 0.85, -h * 0.5 - 115);
+    ctx.lineTo(w * 0.85, -h * 0.5 - 115);
+    ctx.lineTo(w * 0.34, -h * 0.48);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   // Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -348,7 +383,15 @@ export function drawEnemyCar(ctx, enemy) {
     }
   }
 
-  // Red taillights (traffic moving forward away from camera)
+  // Headlights (bright yellow when oncoming) and taillights
+  if (oncoming) {
+    ctx.fillStyle = '#fef08a';
+    roundRect(ctx, -w * 0.38, -h / 2 + 2, 10, 5, 2);
+    ctx.fill();
+    roundRect(ctx, w * 0.38 - 10, -h / 2 + 2, 10, 5, 2);
+    ctx.fill();
+  }
+
   ctx.fillStyle = '#ef4444';
   roundRect(ctx, -w * 0.38, h / 2 - 6, 10, 4, 2);
   ctx.fill();
