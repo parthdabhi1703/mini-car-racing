@@ -11,6 +11,7 @@ import {
 import { soundEngine } from '../audio/soundEngine';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { usePwaInstall } from '../hooks/usePwaInstall';
+import { useGyroscope } from '../hooks/useGyroscope';
 
 const LOGICAL_HEIGHT = 800;
 const LANE_COUNT = 4;
@@ -51,10 +52,25 @@ export default function RacingGame() {
   );
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
+  const [gyroEnabled, setGyroEnabled] = useState(() =>
+    readStorageString(STORAGE_KEYS.GYRO_ENABLED, 'false') === 'true'
+  );
+  const [gyroNotice, setGyroNotice] = useState('');
 
   const { isFullscreen, isSupported: fsSupported, toggleFullscreen } =
     useFullscreen(containerRef);
   const { canInstall, isInstalled, isIos, promptInstall } = usePwaInstall();
+  const {
+    isSupported: gyroSupported,
+    needsPermission: gyroNeedsPermission,
+    permission: gyroPermission,
+    steerRef: gyroSteerRef,
+    requestAccess: requestGyroAccess,
+    recalibrate: recalibrateGyro,
+  } = useGyroscope(gyroEnabled);
+
+  const gyroEnabledRef = useRef(gyroEnabled);
+  gyroEnabledRef.current = gyroEnabled;
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
@@ -131,6 +147,15 @@ export default function RacingGame() {
       // ignore
     }
   }, [selectedCarId]);
+
+  // Persist gyro preference
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.GYRO_ENABLED, String(gyroEnabled));
+    } catch {
+      // ignore
+    }
+  }, [gyroEnabled]);
 
   // Detect touch device (initial + dynamic on first touch)
   useEffect(() => {
@@ -213,11 +238,44 @@ export default function RacingGame() {
     setSpeedKmh(120);
   }, []);
 
-  const startGame = useCallback(() => {
+  const setGyroMode = useCallback(
+    async (enable) => {
+      setGyroNotice('');
+      if (!enable) {
+        setGyroEnabled(false);
+        return;
+      }
+      if (!gyroSupported) {
+        setGyroNotice('Gyroscope is not supported on this device.');
+        return;
+      }
+      const granted = await requestGyroAccess();
+      if (granted) {
+        setGyroEnabled(true);
+        recalibrateGyro();
+      } else {
+        setGyroEnabled(false);
+        setGyroNotice('Motion sensor permission denied. Enable it in browser settings.');
+      }
+    },
+    [gyroSupported, recalibrateGyro, requestGyroAccess]
+  );
+
+  const startGame = useCallback(async () => {
+    if (gyroEnabledRef.current && gyroNeedsPermission && gyroPermission !== 'granted') {
+      const granted = await requestGyroAccess();
+      if (!granted) {
+        setGyroEnabled(false);
+        setGyroNotice('Motion sensor permission denied — switched to Touch controls.');
+      }
+    }
+    if (gyroEnabledRef.current) {
+      recalibrateGyro();
+    }
     resetSimulation();
     setGameState('playing');
     soundEngine.startEngine();
-  }, [resetSimulation]);
+  }, [gyroNeedsPermission, gyroPermission, recalibrateGyro, requestGyroAccess, resetSimulation]);
 
   const togglePause = useCallback(() => {
     setGameState((prev) => {
@@ -434,7 +492,7 @@ export default function RacingGame() {
         sim.roadOffset += sim.speed * dt;
         sim.score += (sim.speed * dt) / 14;
 
-        // Steering physics (keyboard/buttons OR direct finger drag on canvas)
+        // Steering physics (drag, keyboard/buttons, or mobile gyroscope tilt)
         const maxLateral = 460;
         if (input.dragPointerId !== null && input.dragTargetX !== null) {
           const diff = input.dragTargetX - sim.player.x;
@@ -444,11 +502,17 @@ export default function RacingGame() {
           sim.player.vx = dt > 0 ? (sim.player.x - prevX) / dt : 0;
           sim.player.tilt = Math.max(-0.22, Math.min(0.22, (sim.player.vx / maxLateral) * 0.16));
         } else {
-          const steerInput = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+          const digitalSteer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+          const steerInput =
+            digitalSteer !== 0
+              ? digitalSteer
+              : gyroEnabledRef.current
+                ? gyroSteerRef.current
+                : 0;
           const targetVx = steerInput * maxLateral;
           sim.player.vx += (targetVx - sim.player.vx) * Math.min(1, dt * 14);
           sim.player.x += sim.player.vx * dt;
-          sim.player.tilt = (sim.player.vx / maxLateral) * 0.16;
+          sim.player.tilt = (sim.player.vx / maxLateral) * 0.18;
         }
 
         // Clamp within road curbs
@@ -775,6 +839,31 @@ export default function RacingGame() {
             </button>
           )}
 
+          {isTouchDevice && gyroSupported && (
+            <button
+              type="button"
+              className={`icon-btn ${gyroEnabled ? 'gyro-active-btn' : ''}`}
+              onClick={() => setGyroMode(!gyroEnabled)}
+              title={gyroEnabled ? 'Gyro Mode On (tap to switch to Touch)' : 'Enable Gyro Tilt Mode'}
+              aria-label="Toggle Gyro Mode"
+            >
+              <span>📱</span>
+              <span className="btn-text">{gyroEnabled ? 'Gyro' : 'Touch'}</span>
+            </button>
+          )}
+
+          {isTouchDevice && gyroEnabled && gameState === 'playing' && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={recalibrateGyro}
+              title="Center / Zero Gyro Tilt"
+              aria-label="Center Gyro Tilt"
+            >
+              🎯
+            </button>
+          )}
+
           <button
             type="button"
             className="icon-btn"
@@ -821,33 +910,45 @@ export default function RacingGame() {
         </div>
       )}
 
-      {/* Touch Controls for mobile/tablet during gameplay */}
+      {/* Touch / Gyro Controls for mobile/tablet during gameplay */}
       {gameState === 'playing' && isTouchDevice && (
         <div className="touch-controls">
-          <div className="touch-steer-group">
+          {!gyroEnabled ? (
+            <div className="touch-steer-group">
+              <button
+                type="button"
+                className="touch-btn"
+                onPointerDown={setControl('left', true)}
+                onPointerUp={setControl('left', false)}
+                onPointerLeave={setControl('left', false)}
+                onPointerCancel={setControl('left', false)}
+                aria-label="Steer Left"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="touch-btn"
+                onPointerDown={setControl('right', true)}
+                onPointerUp={setControl('right', false)}
+                onPointerLeave={setControl('right', false)}
+                onPointerCancel={setControl('right', false)}
+                aria-label="Steer Right"
+              >
+                ▶
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              className="touch-btn"
-              onPointerDown={setControl('left', true)}
-              onPointerUp={setControl('left', false)}
-              onPointerLeave={setControl('left', false)}
-              onPointerCancel={setControl('left', false)}
-              aria-label="Steer Left"
+              className="gyro-pill-hint"
+              onClick={recalibrateGyro}
+              title="Tap to zero current phone angle"
             >
-              ◀
+              📱 GYRO • 🎯 ZERO
             </button>
-            <button
-              type="button"
-              className="touch-btn"
-              onPointerDown={setControl('right', true)}
-              onPointerUp={setControl('right', false)}
-              onPointerLeave={setControl('right', false)}
-              onPointerCancel={setControl('right', false)}
-              aria-label="Steer Right"
-            >
-              ▶
-            </button>
-          </div>
+          )}
+
           <button
             type="button"
             className="touch-btn slow-touch-btn"
@@ -906,6 +1007,31 @@ export default function RacingGame() {
               </div>
             </div>
 
+            {isTouchDevice && gyroSupported && (
+              <div className="steer-mode-picker">
+                <div className="picker-label">MOBILE STEERING</div>
+                <div className="steer-mode-grid">
+                  <button
+                    type="button"
+                    className={`car-option ${!gyroEnabled ? 'active' : ''}`}
+                    onClick={() => setGyroMode(false)}
+                  >
+                    <span>👆</span>
+                    <span className="car-name">Touch Buttons</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`car-option ${gyroEnabled ? 'active' : ''}`}
+                    onClick={() => setGyroMode(true)}
+                  >
+                    <span>📱</span>
+                    <span className="car-name">Gyro Tilt</span>
+                  </button>
+                </div>
+                {gyroNotice && <div className="gyro-notice">{gyroNotice}</div>}
+              </div>
+            )}
+
             <div className="cta-stack">
               <button type="button" className="primary-btn" onClick={startGame}>
                 START RACE
@@ -934,11 +1060,19 @@ export default function RacingGame() {
 
             <div className="controls-hint">
               {isTouchDevice ? (
-                <>
-                  <span><strong>Steer:</strong> Drag road or tap ◀ ▶</span>
-                  <span><strong>Slow:</strong> Hold ▼</span>
-                  <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
-                </>
+                gyroEnabled ? (
+                  <>
+                    <span><strong>Steer:</strong> Tilt phone left / right</span>
+                    <span><strong>Slow:</strong> Hold ▼</span>
+                    <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
+                  </>
+                ) : (
+                  <>
+                    <span><strong>Steer:</strong> Drag road or tap ◀ ▶</span>
+                    <span><strong>Slow:</strong> Hold ▼</span>
+                    <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
+                  </>
+                )
               ) : (
                 <>
                   <span><strong>Move:</strong> ← → / A D</span>

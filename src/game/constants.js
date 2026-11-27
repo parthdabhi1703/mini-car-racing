@@ -61,4 +61,5 @@ export const STORAGE_KEYS = {
   HIGH_SCORE: 'apex_rush_high_score',
   CAR_ID: 'apex_rush_car_id',
   MUTED: 'apex_rush_muted',
+  GYRO_ENABLED: 'apex_rush_gyro_enabled',
 };
