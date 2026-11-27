@@ -18,6 +18,25 @@ import { soundEngine } from '../audio/soundEngine';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { usePwaInstall } from '../hooks/usePwaInstall';
 import { useGyroscope } from '../hooks/useGyroscope';
+import {
+  SpeakerOnIcon,
+  SpeakerOffIcon,
+  PauseIcon,
+  PlayIcon,
+  FullscreenEnterIcon,
+  FullscreenExitIcon,
+  DownloadIcon,
+  GyroIcon,
+  TouchIcon,
+  TargetIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  BoltIcon,
+  OneWayIcon,
+  TwoWayIcon,
+  HeartIcon,
+} from './Icons';
 
 const LOGICAL_HEIGHT = 800;
 
@@ -54,6 +73,10 @@ function readStorageString(key, fallback) {
 export default function RacingGame() {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const ctxRef = useRef(null);
+  const scoreElRef = useRef(null);
+  const speedElRef = useRef(null);
+  const nitroFillRef = useRef(null);
 
   const [gameState, setGameState] = useState('menu'); // 'menu' | 'playing' | 'paused' | 'gameover'
   const [difficulty, setDifficulty] = useState(() =>
@@ -358,6 +381,9 @@ export default function RacingGame() {
     setGameState((prev) => {
       if (prev === 'playing') {
         soundEngine.stopEngine();
+        setScore(Math.floor(simRef.current.score));
+        setNitro(Math.round(simRef.current.nitro));
+        setSpeedKmh(Math.round(simRef.current.speed * 0.34));
         return 'paused';
       }
       if (prev === 'paused') {
@@ -462,11 +488,12 @@ export default function RacingGame() {
 
     const updateSize = () => {
       const rect = container.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       computeLayout(rect.width, rect.height);
       const sim = simRef.current;
       canvas.width = Math.round(sim.width * dpr);
       canvas.height = Math.round(sim.height * dpr);
+      ctxRef.current = canvas.getContext('2d', { alpha: false });
     };
 
     updateSize();
@@ -492,19 +519,21 @@ export default function RacingGame() {
       const busyBand = isHard ? 220 : 140;
       const topBand = isHard ? 260 : 210;
 
-      // Pick a lane that doesn't immediately overlap another newly spawned enemy
-      const busyLanes = new Set(
-        sim.enemies.filter((e) => e.y < busyBand).map((e) => e.lane)
-      );
+      // Zero-allocation scan of busy lanes and top occupancy
+      let busyMask = 0;
+      let topOccupied = 0;
+      for (let i = 0; i < sim.enemies.length; i++) {
+        const e = sim.enemies[i];
+        if (e.y < busyBand) busyMask |= 1 << e.lane;
+        if (e.y < topBand) topOccupied++;
+      }
+      if (topOccupied >= lanes - 1) return;
+
       const freeLanes = [];
       for (let i = 0; i < lanes; i++) {
-        if (!busyLanes.has(i)) freeLanes.push(i);
+        if ((busyMask & (1 << i)) === 0) freeLanes.push(i);
       }
       if (freeLanes.length === 0) return;
-
-      // Ensure at least one lane remains passable across the top band
-      const topOccupied = sim.enemies.filter((e) => e.y < topBand).length;
-      if (topOccupied >= lanes - 1) return;
 
       const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
       const type = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
@@ -529,11 +558,10 @@ export default function RacingGame() {
       const laneW = sim.roadWidth / lanes;
       const lane = Math.floor(Math.random() * lanes);
       const x = sim.roadLeft + laneW * (lane + 0.5);
-      // Avoid spawning inside an enemy car
-      const blocked = sim.enemies.some(
-        (e) => e.lane === lane && e.y < 90
-      );
-      if (blocked) return;
+      for (let i = 0; i < sim.enemies.length; i++) {
+        const e = sim.enemies[i];
+        if (e.lane === lane && e.y < 90) return;
+      }
 
       sim.pickups.push({
         lane,
@@ -545,7 +573,7 @@ export default function RacingGame() {
     };
 
     const addBurst = (sim, x, y, color, count = 14) => {
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < count && sim.particles.length < 90; i++) {
         const angle = Math.random() * Math.PI * 2;
         const mag = 60 + Math.random() * 240;
         sim.particles.push({
@@ -630,7 +658,7 @@ export default function RacingGame() {
         }
 
         // Nitro exhaust particles
-        if (sim.boosting && Math.random() < 0.75) {
+        if (sim.boosting && sim.particles.length < 90 && Math.random() < 0.65) {
           sim.particles.push({
             x: sim.player.x + (Math.random() - 0.5) * 16,
             y: sim.player.y + sim.player.height / 2 + 8,
@@ -768,13 +796,19 @@ export default function RacingGame() {
           setGameState('gameover');
         }
 
-        // Sync React HUD at ~15fps so DOM stays light
+        // Direct DOM HUD updates (zero React re-renders during 60fps gameplay)
         hudSyncAcc += dt;
-        if (hudSyncAcc >= 0.065) {
+        if (hudSyncAcc >= 0.05) {
           hudSyncAcc = 0;
-          setScore(Math.floor(sim.score));
-          setNitro(Math.round(sim.nitro));
-          setSpeedKmh(Math.round(sim.speed * 0.34));
+          if (scoreElRef.current) {
+            scoreElRef.current.textContent = Math.floor(sim.score).toLocaleString();
+          }
+          if (speedElRef.current) {
+            speedElRef.current.textContent = `${Math.round(sim.speed * 0.34)} km/h`;
+          }
+          if (nitroFillRef.current) {
+            nitroFillRef.current.style.width = `${Math.round(sim.nitro)}%`;
+          }
         }
       }
 
@@ -798,8 +832,8 @@ export default function RacingGame() {
 
       // Render canvas
       const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
+      const ctx = ctxRef.current || (canvas ? (ctxRef.current = canvas.getContext('2d', { alpha: false })) : null);
+      if (canvas && ctx) {
         const scale = canvas.width / sim.width;
         ctx.save();
         ctx.scale(scale, scale);
@@ -948,7 +982,9 @@ export default function RacingGame() {
         <div className="hud-stats">
           <div className="stat-pill">
             <span className="stat-label">SCORE</span>
-            <span className="stat-value">{score.toLocaleString()}</span>
+            <span ref={scoreElRef} className="stat-value">
+              {score.toLocaleString()}
+            </span>
           </div>
           <div className="stat-pill">
             <span className="stat-label">BEST</span>
@@ -957,7 +993,9 @@ export default function RacingGame() {
           {gameState === 'playing' && (
             <div className="stat-pill hide-xs">
               <span className="stat-label">SPEED</span>
-              <span className="stat-value">{speedKmh} km/h</span>
+              <span ref={speedElRef} className="stat-value">
+                {speedKmh} km/h
+              </span>
             </div>
           )}
         </div>
@@ -969,8 +1007,9 @@ export default function RacingGame() {
               className="icon-btn install-btn"
               onClick={handleInstallClick}
               title="Install as App"
+              aria-label="Install as App"
             >
-              <span>⬇</span>
+              <DownloadIcon />
               <span className="btn-text">Install</span>
             </button>
           )}
@@ -982,8 +1021,9 @@ export default function RacingGame() {
               onClick={() => setGyroMode(!gyroEnabled)}
               title={gyroEnabled ? 'Gyro Mode On (tap to switch to Touch)' : 'Enable Gyro Tilt Mode'}
               aria-label="Toggle Gyro Mode"
+              aria-pressed={gyroEnabled}
             >
-              <span>📱</span>
+              {gyroEnabled ? <GyroIcon /> : <TouchIcon />}
               <span className="btn-text">{gyroEnabled ? 'Gyro' : 'Touch'}</span>
             </button>
           )}
@@ -994,8 +1034,9 @@ export default function RacingGame() {
             onClick={() => setMuted((m) => !m)}
             title={muted ? 'Unmute sound' : 'Mute sound'}
             aria-label={muted ? 'Unmute sound' : 'Mute sound'}
+            aria-pressed={muted}
           >
-            {muted ? '🔇' : '🔊'}
+            {muted ? <SpeakerOffIcon /> : <SpeakerOnIcon />}
           </button>
 
           {(gameState === 'playing' || gameState === 'paused') && (
@@ -1004,9 +1045,10 @@ export default function RacingGame() {
               className="icon-btn"
               onClick={togglePause}
               title={gameState === 'paused' ? 'Resume (P)' : 'Pause (P)'}
-              aria-label="Pause or resume"
+              aria-label={gameState === 'paused' ? 'Resume game' : 'Pause game'}
+              aria-pressed={gameState === 'paused'}
             >
-              {gameState === 'paused' ? '▶' : '⏸'}
+              {gameState === 'paused' ? <PlayIcon /> : <PauseIcon />}
             </button>
           )}
 
@@ -1016,9 +1058,10 @@ export default function RacingGame() {
               className="icon-btn"
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Exit Fullscreen (F)' : 'Play Fullscreen (F)'}
-              aria-label="Toggle fullscreen"
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Play fullscreen'}
+              aria-pressed={isFullscreen}
             >
-              {isFullscreen ? '⤓' : '⛶'}
+              {isFullscreen ? <FullscreenExitIcon /> : <FullscreenEnterIcon />}
             </button>
           )}
         </div>
@@ -1030,7 +1073,11 @@ export default function RacingGame() {
           <div className="nitro-hud">
             <span className="nitro-label">NITRO</span>
             <div className="nitro-track">
-              <div className="nitro-fill" style={{ width: `${nitro}%` }} />
+              <div
+                ref={nitroFillRef}
+                className="nitro-fill"
+                style={{ width: `${nitro}%` }}
+              />
             </div>
           </div>
           {!isTouchDevice && activeLaneCount > 4 && (
@@ -1056,7 +1103,7 @@ export default function RacingGame() {
                 onLostPointerCapture={handleControlEnd}
                 aria-label="Steer Left"
               >
-                ◀
+                <ChevronLeftIcon />
               </button>
               <button
                 type="button"
@@ -1067,7 +1114,7 @@ export default function RacingGame() {
                 onLostPointerCapture={handleControlEnd}
                 aria-label="Steer Right"
               >
-                ▶
+                <ChevronRightIcon />
               </button>
             </div>
           ) : (
@@ -1077,7 +1124,11 @@ export default function RacingGame() {
               onClick={recalibrateGyro}
               title="Tap to zero current phone angle"
             >
-              📱 GYRO • 🎯 ZERO
+              <GyroIcon size={15} />
+              <span>GYRO</span>
+              <span className="pill-sep" aria-hidden="true">•</span>
+              <TargetIcon size={14} />
+              <span>ZERO</span>
             </button>
           )}
 
@@ -1090,7 +1141,7 @@ export default function RacingGame() {
             onLostPointerCapture={handleControlEnd}
             aria-label="Slow Down"
           >
-            ▼
+            <ChevronDownIcon />
           </button>
           <button
             type="button"
@@ -1101,7 +1152,8 @@ export default function RacingGame() {
             onLostPointerCapture={handleControlEnd}
             aria-label="Nitro Boost"
           >
-            ⚡ NITRO
+            <BoltIcon size={16} />
+            <span>NITRO</span>
           </button>
         </div>
       )}
@@ -1145,7 +1197,10 @@ export default function RacingGame() {
                   className={`mode-option ${difficulty === 'easy' ? 'active-easy' : ''}`}
                   onClick={() => setDifficulty('easy')}
                 >
-                  <span className="mode-title">🟢 Easy (1-Way)</span>
+                  <span className="mode-title icon-label">
+                    <OneWayIcon size={15} />
+                    <span>Easy (1-Way)</span>
+                  </span>
                   <span className="mode-sub">All {activeLaneCount} Lanes Forward</span>
                 </button>
                 <button
@@ -1153,7 +1208,10 @@ export default function RacingGame() {
                   className={`mode-option ${difficulty === 'hard' ? 'active-hard' : ''}`}
                   onClick={() => setDifficulty('hard')}
                 >
-                  <span className="mode-title">🔥 Hard (2-Way)</span>
+                  <span className="mode-title icon-label">
+                    <TwoWayIcon size={15} />
+                    <span>Hard (2-Way)</span>
+                  </span>
                   <span className="mode-sub">Right {activeLaneCount / 2} Lanes Oncoming</span>
                 </button>
               </div>
@@ -1188,7 +1246,7 @@ export default function RacingGame() {
                     className={`car-option ${!gyroEnabled ? 'active' : ''}`}
                     onClick={() => setGyroMode(false)}
                   >
-                    <span>👆</span>
+                    <TouchIcon size={17} />
                     <span className="car-name">Touch Buttons</span>
                   </button>
                   <button
@@ -1196,7 +1254,7 @@ export default function RacingGame() {
                     className={`car-option ${gyroEnabled ? 'active' : ''}`}
                     onClick={() => setGyroMode(true)}
                   >
-                    <span>📱</span>
+                    <GyroIcon size={17} />
                     <span className="car-name">Gyro Tilt</span>
                   </button>
                 </div>
@@ -1212,19 +1270,21 @@ export default function RacingGame() {
                 {fsSupported && (
                   <button
                     type="button"
-                    className="secondary-btn"
+                    className="secondary-btn icon-label-center"
                     onClick={toggleFullscreen}
                   >
-                    {isFullscreen ? 'Exit Fullscreen' : '⛶ Fullscreen'}
+                    {isFullscreen ? <FullscreenExitIcon size={16} /> : <FullscreenEnterIcon size={16} />}
+                    <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
                   </button>
                 )}
                 {(canInstall || isIos) && !isInstalled && (
                   <button
                     type="button"
-                    className="secondary-btn install-secondary"
+                    className="secondary-btn install-secondary icon-label-center"
                     onClick={handleInstallClick}
                   >
-                    ⬇ Install App
+                    <DownloadIcon size={16} />
+                    <span>Install App</span>
                   </button>
                 )}
               </div>
@@ -1235,19 +1295,19 @@ export default function RacingGame() {
                 gyroEnabled ? (
                   <>
                     <span><strong>Steer:</strong> Tilt phone left / right</span>
-                    <span><strong>Slow:</strong> Hold ▼</span>
-                    <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
+                    <span><strong>Slow:</strong> Hold Down</span>
+                    <span><strong>Nitro:</strong> Hold Nitro</span>
                   </>
                 ) : (
                   <>
-                    <span><strong>Steer:</strong> Drag road or tap ◀ ▶</span>
-                    <span><strong>Slow:</strong> Hold ▼</span>
-                    <span><strong>Nitro:</strong> Hold ⚡ NITRO</span>
+                    <span><strong>Steer:</strong> Drag road or Left / Right</span>
+                    <span><strong>Slow:</strong> Hold Down</span>
+                    <span><strong>Nitro:</strong> Hold Nitro</span>
                   </>
                 )
               ) : (
                 <>
-                  <span><strong>Move:</strong> ← → / A D</span>
+                  <span><strong>Move:</strong> Arrow / A D</span>
                   <span><strong>Nitro:</strong> Space / Shift</span>
                   <span><strong>Fullscreen:</strong> F</span>
                 </>
@@ -1341,7 +1401,11 @@ export default function RacingGame() {
           gameState === 'playing' && isTouchDevice ? 'credit-badge--compact' : ''
         }`}
       >
-        Made with <span className="credit-heart">❤</span> by Parth Dabhi
+        <span>Made with</span>
+        <span className="credit-heart">
+          <HeartIcon size={12} />
+        </span>
+        <span>by Parth Dabhi</span>
       </div>
     </main>
   );
