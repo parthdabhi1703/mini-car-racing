@@ -2,6 +2,33 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function socialMetaUrlPlugin() {
+  const rawHost =
+    process.env.VITE_SITE_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.VERCEL_URL ||
+    '';
+  const baseUrl = rawHost
+    ? (rawHost.startsWith('http') ? rawHost : `https://${rawHost}`).replace(/\/$/, '')
+    : '';
+
+  return {
+    name: 'social-meta-url',
+    transformIndexHtml(html) {
+      let out = html.replaceAll('__OG_BASE_URL__', baseUrl);
+      if (baseUrl) {
+        out = out.replace(
+          '<!--__SOCIAL_URL_TAGS__-->',
+          `<link rel="canonical" href="${baseUrl}/" />\n    <meta property="og:url" content="${baseUrl}/" />\n    <meta property="og:image:secure_url" content="${baseUrl}/og-card.png" />`
+        );
+      } else {
+        out = out.replace(/\s*<!--__SOCIAL_URL_TAGS__-->/, '');
+      }
+      return out;
+    },
+  };
+}
+
 export default defineConfig({
   server: {
     host: true,
@@ -10,6 +37,7 @@ export default defineConfig({
     host: true,
   },
   plugins: [
+    socialMetaUrlPlugin(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
